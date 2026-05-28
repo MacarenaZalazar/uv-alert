@@ -1,0 +1,46 @@
+{
+    "name": "uv-alert",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "next": "15.5.18",
+        "react": "19.1.0",
+        "react-dom": "19.1.0",
+        "zod": "^3.25.30",
+        "@supabase/supabase-js": "^2.49.8",
+        "web-push": "^3.6.7"
+    },
+    "devDependencies": {
+        "typescript": "^5",
+        "@types/node": "^20",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "@types/web-push": "^3.6.4",
+        "tailwindcss": "^3.3.0",
+        "autoprefixer": "^10.0.1",
+        "postcss": "^8",
+        "@eslint/js": "^9.39.4",
+        "eslint": "^9.39.4",
+        "eslint-config-next": "^15.5.18",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-prettier": "^5.5.5",
+        "globals": "^17.5.0",
+        "jiti": "^2.6.1",
+        "prettier": "^3.8.3",
+        "typescript-eslint": "^8.59.1",
+        "vitest": "^3.2.3",
+        "@vitejs/plugin-react": "^4.5.2"
+    }
+}

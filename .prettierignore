@@ -1,0 +1,8 @@
+node_modules
+dist
+.next
+.vercel
+.wrangler
+coverage
+*.min.js
+package-lock.json

@@ -2,4 +2,4 @@
 
 PWA que notifica cambios del índice UV (umbral 3).
 
-En construcción.
+Setup completo en task #18.

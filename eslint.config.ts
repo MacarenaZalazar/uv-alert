@@ -16,6 +16,9 @@ export default defineConfig([
             'coverage/**',
             'docs/**',
             'next-env.d.ts',
+            // Service worker: plain JS with SW globals (self, clients, indexedDB),
+            // served as-is with no transpilation — linting via tseslint is not applicable.
+            'public/sw.js',
         ],
     },
     {

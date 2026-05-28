@@ -1,0 +1,28 @@
+name: UV Check Cron
+
+on:
+    schedule:
+        - cron: '*/5 * * * *'
+    workflow_dispatch:
+
+jobs:
+    poll:
+        runs-on: ubuntu-latest
+        timeout-minutes: 2
+        steps:
+            - name: Trigger Vercel uv-check endpoint
+              env:
+                  URL: ${{ secrets.VERCEL_UV_CHECK_URL }}
+                  CRON_SECRET: ${{ secrets.CRON_SECRET }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+                      echo "Missing secrets VERCEL_UV_CHECK_URL or CRON_SECRET" >&2
+                      exit 1
+                  fi
+                  response=$(curl -fsS -X POST "$URL" \
+                      -H "Authorization: Bearer $CRON_SECRET" \
+                      -H "Content-Type: application/json" \
+                      -w "\nHTTP_STATUS:%{http_code}" \
+                      --max-time 30)
+                  echo "$response"

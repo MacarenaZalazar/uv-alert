@@ -94,10 +94,63 @@ interface WeatherCardProps {
 function WeatherCard({ weather, displayLocation }: WeatherCardProps) {
     const description = weatherDescriptionEs(weather.weatherCode, weather.isDay);
 
+    const [now, setNow] = useState<number>(Date.now());
+
+    useEffect(() => {
+        const id = setInterval(() => {
+            setNow(Date.now());
+        }, 30_000);
+
+        return () => {
+            clearInterval(id);
+        };
+    }, []);
+
+    const displayTime = useMemo(() => {
+        if (!weather.timezone) {
+            return null;
+        }
+
+        try {
+            return new Intl.DateTimeFormat('es-AR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: weather.timezone,
+                hour12: false,
+            }).format(new Date(now));
+        } catch {
+            return null;
+        }
+    }, [weather.timezone, now]);
+
+    const displayDate = useMemo(() => {
+        if (!weather.timezone) {
+            return null;
+        }
+
+        try {
+            const raw = new Intl.DateTimeFormat('es-AR', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                timeZone: weather.timezone,
+            }).format(new Date(now));
+
+            return raw.charAt(0).toUpperCase() + raw.slice(1);
+        } catch {
+            return null;
+        }
+    }, [weather.timezone, now]);
+
     return (
         <Card>
-            <p className="text-sm font-medium text-violet-600 mb-1">{displayLocation}</p>
-            <div className="mb-4 flex items-start justify-between">
+            <p className="text-sm font-medium text-violet-600">{displayLocation}</p>
+            {displayTime ? (
+                <p className="text-xs text-slate-500 mt-0.5">
+                    {displayDate} · {displayTime}
+                </p>
+            ) : null}
+            <div className="mb-4 mt-3 flex items-start justify-between">
                 <div>
                     <p className="text-6xl font-bold text-slate-800 leading-none">
                         {formatTemp(weather.temperatureC)}

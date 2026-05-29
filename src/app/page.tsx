@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { usePushSubscription } from '@/hooks/usePushSubscription';
+import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 import { useWeather } from '@/hooks/useWeather';
 import { weatherDescriptionEs } from '@/lib/openMeteo';
 import type { CurrentWeather } from '@/lib/openMeteo';
@@ -87,13 +88,15 @@ function UvBadge({ uv }: UvBadgeProps) {
 
 interface WeatherCardProps {
     readonly weather: CurrentWeather;
+    readonly displayLocation: string;
 }
 
-function WeatherCard({ weather }: WeatherCardProps) {
+function WeatherCard({ weather, displayLocation }: WeatherCardProps) {
     const description = weatherDescriptionEs(weather.weatherCode, weather.isDay);
 
     return (
         <Card>
+            <p className="text-sm font-medium text-violet-600 mb-1">{displayLocation}</p>
             <div className="mb-4 flex items-start justify-between">
                 <div>
                     <p className="text-6xl font-bold text-slate-800 leading-none">
@@ -249,10 +252,33 @@ function IOSInstallGate() {
 // Main page
 // ---------------------------------------------------------------------------
 
+function buildDisplayLocation(
+    geocodeCity: string | undefined,
+    geocodeCountry: string | null | undefined,
+    timezone: string,
+    coords: { lat: number; lon: number },
+): string {
+    if (geocodeCity) {
+        return geocodeCountry ? `${geocodeCity}, ${geocodeCountry}` : geocodeCity;
+    }
+
+    const segments = timezone.split('/');
+    const lastSegment = segments[segments.length - 1];
+
+    if (lastSegment && lastSegment !== 'UTC') {
+        return lastSegment.replace(/_/g, ' ');
+    }
+
+    return `${coords.lat.toFixed(2)}°, ${coords.lon.toFixed(2)}°`;
+}
+
 export default function HomePage() {
     const geolocation = useGeolocation();
     const pushSubscription = usePushSubscription(VAPID_PUBLIC_KEY);
     const { weather, state: weatherState } = useWeather(geolocation.coords);
+    const { state: geocodeState, location: geocodeLocation } = useReverseGeocode(
+        geolocation.coords,
+    );
 
     // iOS detection — must run client-side only (no navigator in SSR)
     const [isIOSAndNotStandalone, setIsIOSAndNotStandalone] = useState(false);
@@ -320,6 +346,22 @@ export default function HomePage() {
     const showWeatherCard =
         geolocation.coords !== null && weatherState === 'ready' && weather !== null;
 
+    const displayLocation = useMemo(() => {
+        if (!showWeatherCard || !geolocation.coords || !weather) {
+            return '';
+        }
+
+        const city = geocodeState === 'ready' ? (geocodeLocation?.city ?? '') : '';
+        const country = geocodeState === 'ready' ? (geocodeLocation?.country ?? null) : null;
+
+        return buildDisplayLocation(
+            city || undefined,
+            country,
+            weather.timezone,
+            geolocation.coords,
+        );
+    }, [showWeatherCard, geocodeState, geocodeLocation, weather, geolocation.coords]);
+
     return (
         <main className="mx-auto flex min-h-screen max-w-md flex-col gap-4 bg-gradient-to-br from-amber-100 via-amber-50 to-violet-100 p-6 pt-12">
             {/* Header */}
@@ -351,7 +393,7 @@ export default function HomePage() {
             )}
 
             {/* Weather card */}
-            {showWeatherCard && <WeatherCard weather={weather} />}
+            {showWeatherCard && <WeatherCard weather={weather} displayLocation={displayLocation} />}
 
             {/* iOS install-first gate */}
             {!isUnsupported && isIOSAndNotStandalone && <IOSInstallGate />}

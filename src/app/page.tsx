@@ -4,66 +4,121 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { usePushSubscription } from '@/hooks/usePushSubscription';
+import { useWeather } from '@/hooks/useWeather';
+import { weatherDescriptionEs } from '@/lib/openMeteo';
+import type { CurrentWeather } from '@/lib/openMeteo';
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? '';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function uvLabel(uv: number | null): { label: string; className: string } {
+    if (uv === null) {
+        return { label: 'Sin datos', className: 'bg-slate-200 text-slate-600' };
+    }
+
+    if (uv <= 2) {
+        return { label: 'Bajo', className: 'bg-green-200 text-green-800' };
+    }
+
+    if (uv <= 5) {
+        return { label: 'Moderado', className: 'bg-amber-200 text-amber-800' };
+    }
+
+    if (uv <= 7) {
+        return { label: 'Alto', className: 'bg-orange-200 text-orange-800' };
+    }
+
+    if (uv <= 10) {
+        return { label: 'Muy alto', className: 'bg-red-200 text-red-800' };
+    }
+
+    return { label: 'Extremo', className: 'bg-violet-200 text-violet-900' };
+}
+
+function formatTemp(value: number | null): string {
+    if (value === null) {
+        return '--';
+    }
+
+    return `${Math.round(value)}°`;
+}
 
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function Card({
+    children,
+    className = '',
+}: {
+    readonly children: React.ReactNode;
+    readonly className?: string;
+}) {
     return (
-        <div className={`rounded-2xl border border-slate-700 bg-slate-900/60 p-6 ${className}`}>
+        <div
+            className={`rounded-3xl border border-white bg-white/80 p-6 shadow-lg shadow-violet-200/50 backdrop-blur-sm ${className}`}
+        >
             {children}
         </div>
     );
 }
 
-function IOSInstallGate() {
+interface UvBadgeProps {
+    readonly uv: number | null;
+}
+
+function UvBadge({ uv }: UvBadgeProps) {
+    const { label, className } = uvLabel(uv);
+    const displayUv = uv !== null ? uv.toFixed(1) : '--';
+
+    return (
+        <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${className}`}
+        >
+            <span>UV {displayUv}</span>
+            <span className="opacity-70">&middot;</span>
+            <span>{label}</span>
+        </span>
+    );
+}
+
+interface WeatherCardProps {
+    readonly weather: CurrentWeather;
+}
+
+function WeatherCard({ weather }: WeatherCardProps) {
+    const description = weatherDescriptionEs(weather.weatherCode, weather.isDay);
+
     return (
         <Card>
-            <h2 className="mb-3 text-lg font-semibold text-amber-400">Instala la app primero</h2>
-            <p className="mb-4 text-sm text-slate-300">
-                Para recibir notificaciones push en iOS, tenés que agregar UV Alert a tu pantalla de
-                inicio. Requiere iOS 16.4 o superior.
-            </p>
-            <ol className="space-y-2 text-sm text-slate-300">
-                <li className="flex gap-2">
-                    <span className="font-bold text-amber-400">1.</span>
-                    Tocá el botón Compartir{' '}
-                    <span className="font-semibold text-slate-100">
-                        (cuadrado con flecha hacia arriba)
-                    </span>{' '}
-                    en Safari.
-                </li>
-                <li className="flex gap-2">
-                    <span className="font-bold text-amber-400">2.</span>
-                    Bajá y tocá{' '}
-                    <span className="font-semibold text-slate-100">
-                        "Agregar a pantalla de inicio"
-                    </span>
-                    .
-                </li>
-                <li className="flex gap-2">
-                    <span className="font-bold text-amber-400">3.</span>
-                    Tocá <span className="font-semibold text-slate-100">"Agregar"</span> arriba a la
-                    derecha.
-                </li>
-                <li className="flex gap-2">
-                    <span className="font-bold text-amber-400">4.</span>
-                    Abrí la app desde el ícono nuevo en tu pantalla de inicio.
-                </li>
-            </ol>
+            <div className="mb-4 flex items-start justify-between">
+                <div>
+                    <p className="text-6xl font-bold text-slate-800 leading-none">
+                        {formatTemp(weather.temperatureC)}
+                    </p>
+                    <p className="mt-2 text-base text-slate-600">{description}</p>
+                </div>
+                <UvBadge uv={weather.uv} />
+            </div>
+            <div className="flex gap-4 text-sm text-slate-500">
+                <span>Sensación: {formatTemp(weather.apparentTemperatureC)}</span>
+                {weather.windSpeedKmh !== null && (
+                    <span>Viento: {Math.round(weather.windSpeedKmh)} km/h</span>
+                )}
+            </div>
         </Card>
     );
 }
 
 interface SubscribeCardProps {
-    onActivate: () => void;
-    isLoading: boolean;
-    geoDenied: boolean;
-    pushDenied: boolean;
-    error: string | null;
+    readonly onActivate: () => void;
+    readonly isLoading: boolean;
+    readonly geoDenied: boolean;
+    readonly pushDenied: boolean;
+    readonly error: string | null;
 }
 
 function SubscribeCard({
@@ -75,27 +130,27 @@ function SubscribeCard({
 }: SubscribeCardProps) {
     return (
         <Card>
-            <h2 className="mb-3 text-lg font-semibold text-slate-100">Activar alertas UV</h2>
-            <p className="mb-5 text-sm text-slate-400">
+            <h2 className="mb-2 text-lg font-semibold text-slate-800">Activar alertas UV</h2>
+            <p className="mb-5 text-sm text-slate-500">
                 Te pedimos acceso a tu ubicación y permisos de notificación para avisarte cuando el
                 índice UV cambia en tu zona.
             </p>
 
             {geoDenied && (
-                <p className="mb-4 rounded-xl bg-red-900/40 p-3 text-sm text-red-300">
+                <p className="mb-4 rounded-2xl bg-red-50 p-3 text-sm text-red-600 border border-red-100">
                     Necesitamos tu ubicación para saber el UV de tu zona. Permitila desde Ajustes
                     del dispositivo.
                 </p>
             )}
 
             {pushDenied && (
-                <p className="mb-4 rounded-xl bg-red-900/40 p-3 text-sm text-red-300">
+                <p className="mb-4 rounded-2xl bg-red-50 p-3 text-sm text-red-600 border border-red-100">
                     Bloqueaste las notificaciones. Cambialo desde Ajustes del navegador.
                 </p>
             )}
 
             {error && !geoDenied && !pushDenied && (
-                <p className="mb-4 rounded-xl bg-red-900/40 p-3 text-sm text-red-300">
+                <p className="mb-4 rounded-2xl bg-red-50 p-3 text-sm text-red-600 border border-red-100">
                     Error: {error}
                 </p>
             )}
@@ -104,47 +159,88 @@ function SubscribeCard({
                 type="button"
                 onClick={onActivate}
                 disabled={isLoading || pushDenied}
-                className="w-full rounded-xl bg-amber-500 px-6 py-3 font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-50"
+                className="w-full rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 px-6 py-4 font-semibold text-slate-900 shadow-md shadow-amber-300/50 hover:from-amber-500 hover:to-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 disabled:opacity-50"
             >
-                {isLoading ? 'Activando…' : 'Activar notificaciones'}
+                {isLoading ? 'Activando...' : 'Activar alertas UV'}
             </button>
         </Card>
     );
 }
 
 interface SubscribedCardProps {
-    lat: number;
-    lon: number;
-    onDeactivate: () => void;
-    isLoading: boolean;
+    readonly lat: number;
+    readonly lon: number;
+    readonly onDeactivate: () => void;
+    readonly isLoading: boolean;
 }
 
 function SubscribedCard({ lat, lon, onDeactivate, isLoading }: SubscribedCardProps) {
     return (
         <Card>
-            <div className="mb-4 flex items-center gap-2">
-                <span className="inline-block size-3 rounded-full bg-green-400" />
-                <h2 className="text-lg font-semibold text-green-400">Notificaciones activas</h2>
+            <div className="mb-3 flex items-center gap-2">
+                <span className="inline-block size-2.5 rounded-full bg-green-500" />
+                <h2 className="text-lg font-semibold text-green-700">Alertas activas</h2>
             </div>
-            <p className="mb-2 text-sm text-slate-300">
-                Listo. Te vamos a avisar cuando el UV cambie en{' '}
-                <span className="font-mono text-slate-100">
+            <p className="mb-1 text-sm text-slate-600">
+                Te avisamos cuando el UV cambie en{' '}
+                <span className="font-mono text-slate-800">
                     {lat.toFixed(4)}, {lon.toFixed(4)}
                 </span>
                 .
             </p>
-            <p className="mb-5 text-sm text-slate-400">
-                Te avisamos cuando supera <span className="font-semibold text-slate-100">3</span> (o
-                vuelve a estar seguro).
+            <p className="mb-5 text-sm text-slate-500">
+                Recibirás alertas cuando supere{' '}
+                <span className="font-semibold text-slate-700">3</span> o vuelva a estar seguro.
             </p>
             <button
                 type="button"
                 onClick={onDeactivate}
                 disabled={isLoading}
-                className="w-full rounded-xl border border-slate-600 px-6 py-3 font-semibold text-slate-300 hover:border-slate-400 hover:text-slate-100 disabled:opacity-50"
+                className="w-full rounded-2xl bg-violet-100 px-6 py-3 font-semibold text-violet-700 hover:bg-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:ring-offset-2 disabled:opacity-50"
             >
-                {isLoading ? 'Desactivando…' : 'Desactivar notificaciones'}
+                {isLoading ? 'Desactivando...' : 'Desactivar'}
             </button>
+        </Card>
+    );
+}
+
+function IOSInstallGate() {
+    return (
+        <Card className="border-amber-200">
+            <h2 className="mb-3 text-lg font-semibold text-amber-700">Instala la app primero</h2>
+            <p className="mb-4 text-sm text-slate-600">
+                Para recibir notificaciones push en iOS, tenés que agregar UV Alert a tu pantalla de
+                inicio. Requiere iOS 16.4 o superior.
+            </p>
+            <ol className="space-y-2 text-sm text-slate-600">
+                <li className="flex gap-2">
+                    <span className="font-bold text-amber-500">1.</span>
+                    Tocá el botón Compartir{' '}
+                    <span className="font-semibold text-slate-800">
+                        (cuadrado con flecha hacia arriba)
+                    </span>{' '}
+                    en Safari.
+                </li>
+                <li className="flex gap-2">
+                    <span className="font-bold text-amber-500">2.</span>
+                    Bajá y tocá{' '}
+                    <span className="font-semibold text-slate-800">
+                        &quot;Agregar a pantalla de inicio&quot;
+                    </span>
+                    .
+                </li>
+                <li className="flex gap-2">
+                    <span className="font-bold text-amber-500">3.</span>
+                    Tocá <span className="font-semibold text-slate-800">
+                        &quot;Agregar&quot;
+                    </span>{' '}
+                    arriba a la derecha.
+                </li>
+                <li className="flex gap-2">
+                    <span className="font-bold text-amber-500">4.</span>
+                    Abrí la app desde el ícono nuevo en tu pantalla de inicio.
+                </li>
+            </ol>
         </Card>
     );
 }
@@ -156,6 +252,7 @@ function SubscribedCard({ lat, lon, onDeactivate, isLoading }: SubscribedCardPro
 export default function HomePage() {
     const geolocation = useGeolocation();
     const pushSubscription = usePushSubscription(VAPID_PUBLIC_KEY);
+    const { weather, state: weatherState } = useWeather(geolocation.coords);
 
     // iOS detection — must run client-side only (no navigator in SSR)
     const [isIOSAndNotStandalone, setIsIOSAndNotStandalone] = useState(false);
@@ -220,20 +317,23 @@ export default function HomePage() {
         }
     };
 
+    const showWeatherCard =
+        geolocation.coords !== null && weatherState === 'ready' && weather !== null;
+
     return (
-        <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-6 p-6">
+        <main className="mx-auto flex min-h-screen max-w-md flex-col gap-4 bg-gradient-to-br from-amber-100 via-amber-50 to-violet-100 p-6 pt-12">
             {/* Header */}
-            <div className="text-center">
-                <h1 className="text-3xl font-bold text-slate-100">UV Alert</h1>
-                <p className="mt-2 text-sm text-slate-400">
+            <div className="mb-2 text-center">
+                <h1 className="text-4xl font-bold leading-tight text-slate-800">UV Alert</h1>
+                <p className="mt-2 text-base text-slate-600">
                     Te avisamos cuando el índice UV es alto en tu zona
                 </p>
             </div>
 
             {/* VAPID env guard */}
             {VAPID_PUBLIC_KEY === '' && (
-                <Card className="border-red-700 bg-red-900/30">
-                    <p className="text-sm font-semibold text-red-300">
+                <Card className="border-red-200 bg-red-50/80">
+                    <p className="text-sm font-semibold text-red-600">
                         Configuración incompleta. Falta{' '}
                         <span className="font-mono">NEXT_PUBLIC_VAPID_PUBLIC_KEY</span>.
                     </p>
@@ -243,12 +343,15 @@ export default function HomePage() {
             {/* Browser support check */}
             {isUnsupported && (
                 <Card>
-                    <p className="text-sm text-slate-300">
+                    <p className="text-sm text-slate-600">
                         Tu navegador no soporta notificaciones push. Probá abriendo esta página en
                         Chrome o Safari (iOS 16.4+) instalada como app.
                     </p>
                 </Card>
             )}
+
+            {/* Weather card */}
+            {showWeatherCard && <WeatherCard weather={weather} />}
 
             {/* iOS install-first gate */}
             {!isUnsupported && isIOSAndNotStandalone && <IOSInstallGate />}
@@ -276,30 +379,30 @@ export default function HomePage() {
             )}
 
             {/* Footer info card */}
-            <Card>
-                <p className="mb-2 text-sm text-slate-400">
-                    El índice UV se mide del 1 al 11+. Sobre{' '}
-                    <span className="font-semibold text-slate-200">3</span> puede dañar la piel sin
+            <Card className="mt-2">
+                <p className="mb-2 text-sm text-slate-500">
+                    El índice UV se mide del 0 al 11+. Sobre{' '}
+                    <span className="font-semibold text-slate-700">3</span> puede dañar la piel sin
                     protección.
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-400">
                     Datos:{' '}
                     <a
                         href="https://open-meteo.com"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="underline hover:text-slate-300"
+                        className="underline hover:text-violet-600"
                     >
                         Open-Meteo
                     </a>{' '}
-                    · Frecuencia: cada 5 min
+                    &middot; Alertas: cada 5 min
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-400">
                     <a
                         href="https://github.com/MacarenaZalazar/uv-alert"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="underline hover:text-slate-300"
+                        className="underline hover:text-violet-600"
                     >
                         Ver en GitHub
                     </a>
